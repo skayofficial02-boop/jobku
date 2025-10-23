@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Manajemen Pekerjaan</title>
+    <style>
+        /* CSS Dasar untuk Tata Letak */
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
+        .container { max-width: 1200px; margin: 20px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        nav { background-color: #4A90E2; color: white; padding: 15px 30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        nav h1 { margin: 0; font-size: 24px; }
+        nav button { background-color: #E94E77; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        h2 { border-bottom: 2px solid #4A90E2; padding-bottom: 5px; color: #333; }
+        
+        /* Tata Letak Modular */
+        .module { background-color: #fdfdfd; border: 1px solid #e0e0e0; padding: 20px; margin-bottom: 20px; border-radius: 5px; }
+        .module input[type="text"],
+        .module input[type="number"],
+        .module input[type="datetime-local"],
+        .module select,
+        .module button {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .module button { background-color: #5CB85C; color: white; font-weight: bold; cursor: pointer; width: 100%; }
+        .module button:hover { background-color: #4CAF50; }
+        
+        /* Grid untuk Laporan */
+        .report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; }
+        .report-card { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .report-card h3 { margin: 0 0 10px 0; color: #555; }
+        .report-card p { font-size: 28px; font-weight: bold; color: #4A90E2; margin: 0; }
+
+        /* Daftar Pekerjaan */
+        .job-list .job-item { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; background-color: #fafafa; }
+        .job-item.completed { background-color: #e8f5e9; border-left: 5px solid #4CAF50; }
+        .job-item strong { color: #4A90E2; }
+        .job-item .details { font-size: 14px; color: #666; margin: 10px 0; }
+        .job-item button { width: auto; background-color: #F0AD4E; }
+    </style>
+</head>
+<body>
+
+    <div id="login-page" class="container">
+        <h1>Selamat Datang</h1>
+        <p>Ini adalah simulasi. Silakan pilih peran Anda:</p>
+        <div class="module">
+            <label for="role-select">Pilih Peran:</label>
+            <select id="role-select">
+                <option value="owner">Owner</option>
+                <option value="staff">Staf</option>
+                <option value="worker">Worker</option>
+            </select>
+            <button id="login-button">Masuk</button>
+        </div>
+    </div>
+
+    <div id="app-page" class="container hidden">
+        <nav>
+            <h1>Dashboard <span id="role-name"></span></h1>
+            <div id="notification-bell">🔔 (0)</div>
+            <button id="logout-button">Keluar</button>
+        </nav>
+
+        <div id="owner-view" class="hidden">
+            <h2>Laporan Bulanan (Simulasi)</h2>
+            <div class="report-grid">
+                <div class="report-card">
+                    <h3>Total Orderan Masuk</h3>
+                    <p id="report-total-orders">0</p>
+                </div>
+                <div class="report-card">
+                    <h3>Total Omset</h3>
+                    <p id="report-total-omset">Rp 0</p>
+                </div>
+                <div class="report-card">
+                    <h3>Total Gaji Pekerja</h3>
+                    <p id="report-total-gaji">Rp 0</p>
+                </div>
+            </div>
+
+            <h2>Buat Job Baru</h2>
+            <div class="module">
+                <input type="text" id="job-name" placeholder="Nama Pekerjaan (misal: Edit 50 Foto)">
+                <select id="job-assignee">
+                    <option value="worker_1">Worker 1</option>
+                    <option value="worker_2">Worker 2</option>
+                    <option value="staff_1">Staff 1</option>
+                </select>
+                <input type="datetime-local" id="job-deadline" title="Deadline">
+                <input type="number" id="job-reward" placeholder="Hasil/Gaji untuk Job ini (misal: 150000)">
+                <button id="add-job-button">Berikan Job</button>
+            </div>
+
+            <h2>Input Orderan (Simulasi)</h2>
+            <div class="module">
+                <input type="number" id="order-value" placeholder="Nilai Orderan (misal: 500000)">
+                <button id="add-order-button">Tambah Orderan</button>
+            </div>
+        </div>
+        
+        <div id="worker-view" class="hidden">
+            <h2>Daftar Pekerjaan Anda</h2>
+            <div id="worker-job-list" class="job-list">
+                <p>Belum ada pekerjaan yang diberikan.</p>
+            </div>
+        </div>
+
+        <h2>Semua Pekerjaan (Monitor)</h2>
+        <div id="all-job-list" class="job-list">
+            <p>Belum ada data pekerjaan.</p>
+        </div>
+    </div>
+
+<script>
+    // === SIMULASI DATABASE (Data hilang saat refresh) ===
+    let db_jobs = []; // Menyimpan semua pekerjaan
+    let db_orders = []; // Menyimpan semua orderan
+    let db_users = {
+        'owner': { role: 'owner', name: 'Pemilik' },
+        'staff': { role: 'staff', name: 'Staf Administrasi' },
+        'worker_1': { role: 'worker', name: 'Worker 1' },
+        'worker_2': { role: 'worker', name: 'Worker 2' },
+        'staff_1': { role: 'staff', name: 'Staff 1' },
+    };
+    let currentUserRole = '';
+    let currentUserAssigneeId = ''; // Untuk memfilter job worker
+
+    // === ELEMEN PENTING ===
+    const loginPage = document.getElementById('login-page');
+    const appPage = document.getElementById('app-page');
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const roleSelect = document.getElementById('role-select');
+    const roleName = document.getElementById('role-name');
+
+    // Tampilan
+    const ownerView = document.getElementById('owner-view');
+    const workerView = document.getElementById('worker-view');
+
+    // Elemen Owner
+    const addJobButton = document.getElementById('add-job-button');
+    const addOrderButton = document.getElementById('add-order-button');
+    const reportTotalOrders = document.getElementById('report-total-orders');
+    const reportTotalOmset = document.getElementById('report-total-omset');
+    const reportTotalGaji = document.getElementById('report-total-gaji');
+
+    // Elemen List Job
+    const allJobList = document.getElementById('all-job-list');
+    const workerJobList = document.getElementById('worker-job-list');
+    const notificationBell = document.getElementById('notification-bell');
+
+    // === FUNGSI ===
+
+    // Fungsi Login
+    loginButton.addEventListener('click', function() {
+        const selectedRole = roleSelect.value;
+        
+        // Logika sederhana untuk menentukan ID penugasan
+        if (selectedRole === 'owner') {
+            currentUserRole = 'owner';
+            currentUserAssigneeId = 'owner'; // Owner bisa lihat semua
+            ownerView.classList.remove('hidden');
+            workerView.classList.add('hidden');
+        } else if (selectedRole === 'staff') {
+            currentUserRole = 'staff';
+            currentUserAssigneeId = 'staff_1'; // Asumsi login sbg staff_1
+            ownerView.classList.add('hidden');
+            workerView.classList.remove('hidden');
+        } else {
+            currentUserRole = 'worker';
+            currentUserAssigneeId = 'worker_1'; // Asumsi login sbg worker_1
+            ownerView.classList.add('hidden');
+            workerView.classList.remove('hidden');
+        }
+
+        roleName.textContent = `(${db_users[currentUserAssigneeId].name})`;
+        loginPage.classList.add('hidden');
+        appPage.classList.remove('hidden');
+        
+        refreshAllViews();
+    });
+
+    // Fungsi Logout
+    logoutButton.addEventListener('click', function() {
+        currentUserRole = '';
+        currentUserAssigneeId = '';
+        loginPage.classList.remove('hidden');
+        appPage.classList.add('hidden');
+    });
+
+    // Fungsi Tambah Order (Owner)
+    addOrderButton.addEventListener('click', function() {
+        const orderValue = parseInt(document.getElementById('order-value').value);
+        if (orderValue > 0) {
+            db_orders.push({ id: Date.now(), value: orderValue });
+            console.log("Order Ditambahkan:", db_orders);
+            document.getElementById('order-value').value = '';
+            updateReports();
+        } else {
+            alert("Masukkan nilai orderan yang valid.");
+        }
+    });
+
+    // Fungsi Tambah Job (Owner)
+    addJobButton.addEventListener('click', function() {
+        const jobName = document.getElementById('job-name').value;
+        const jobAssignee = document.getElementById('job-assignee').value;
+        const jobDeadline = document.getElementById('job-deadline').value;
+        const jobReward = parseInt(document.getElementById('job-reward').value);
+
+        if (jobName && jobAssignee && jobDeadline && jobReward > 0) {
+            const newJob = {
+                id: Date.now(),
+                name: jobName,
+                assigneeId: jobAssignee,
+                deadline: new Date(jobDeadline),
+                reward: jobReward,
+                status: 'pending' // Status: pending, completed
+            };
+            db_jobs.push(newJob);
+            
+            // Simulasi Notifikasi
+            alert(`NOTIFIKASI BARU untuk ${db_users[jobAssignee].name}:\nJob: ${jobName}`);
+            
+            // Reset form
+            document.getElementById('job-name').value = '';
+            document.getElementById('job-deadline').value = '';
+            document.getElementById('job-reward').value = '';
+            
+            refreshAllViews();
+        } else {
+            alert("Harap isi semua data pekerjaan dengan lengkap.");
+        }
+    });
+
+    // Fungsi Selesai Job (Worker)
+    function completeJob(jobId) {
+        const job = db_jobs.find(j => j.id === jobId);
+        if (job && job.assigneeId === currentUserAssigneeId) {
+            job.status = 'completed';
+            alert(`Pekerjaan "${job.name}" telah ditandai selesai!`);
+            refreshAllViews();
+        } else {
+            alert("Ini bukan tugas Anda!");
+        }
+    }
+
+    // === FUNGSI RENDER TAMPILAN ===
+    
+    function refreshAllViews() {
+        renderAllJobList();
+        renderWorkerJobList();
+        updateReports();
+        updateNotifications();
+    }
+
+    // Render Semua Job (Untuk Owner / Monitor)
+    function renderAllJobList() {
+        if (db_jobs.length === 0) {
+            allJobList.innerHTML = '<p>Belum ada data pekerjaan.</p>';
+            return;
+        }
+        
+        allJobList.innerHTML = ''; // Kosongkan list
+        db_jobs.forEach(job => {
+            const item = document.createElement('div');
+            item.className = `job-item ${job.status === 'completed' ? 'completed' : ''}`;
+            item.innerHTML = `
+                <strong>${job.name}</strong> (Status: ${job.status})
+                <div class="details">
+                    Untuk: ${db_users[job.assigneeId].name} | 
+                    Deadline: ${job.deadline.toLocaleString('id-ID')} | 
+                    Hasil: Rp ${job.reward.toLocaleString('id-ID')}
+                </div>
+            `;
+            allJobList.appendChild(item);
+        });
+    }
+
+    // Render Job Khusus Worker yang Login
+    function renderWorkerJobList() {
+        const myJobs = db_jobs.filter(job => job.assigneeId === currentUserAssigneeId);
+
+        if (myJobs.length === 0) {
+            workerJobList.innerHTML = '<p>Belum ada pekerjaan yang diberikan.</p>';
+            return;
+        }
+
+        workerJobList.innerHTML = ''; // Kosongkan list
+        myJobs.forEach(job => {
+            const item = document.createElement('div');
+            item.className = `job-item ${job.status === 'completed' ? 'completed' : ''}`;
+            item.innerHTML = `
+                <strong>${job.name}</strong>
+                <div class="details">
+                    Deadline: ${job.deadline.toLocaleString('id-ID')} | 
+                    Hasil: Rp ${job.reward.toLocaleString('id-ID')}
+                </div>
+                ${job.status === 'pending' ? 
+                    `<button onclick="completeJob(${job.id})">Tandai Selesai</button>` : 
+                    `<span>Status: SELESAI</span>`
+                }
+            `;
+            workerJobList.appendChild(item);
+        });
+    }
+
+    // Update Laporan (Owner)
+    function updateReports() {
+        // 1. Total Orderan
+        reportTotalOrders.textContent = db_orders.length;
+
+        // 2. Total Omset
+        const totalOmset = db_orders.reduce((sum, order) => sum + order.value, 0);
+        reportTotalOmset.textContent = `Rp ${totalOmset.toLocaleString('id-ID')}`;
+
+        // 3. Total Gaji (Hanya dari job yang selesai)
+        const totalGaji = db_jobs.filter(job => job.status === 'completed')
+                                 .reduce((sum, job) => sum + job.reward, 0);
+        reportTotalGaji.textContent = `Rp ${totalGaji.toLocaleString('id-ID')}`;
+    }
+
+    // Update Notifikasi (Simulasi)
+    function updateNotifications() {
+        if (currentUserRole === 'owner') {
+            const completedJobs = db_jobs.filter(j => j.status === 'completed').length;
+            notificationBell.textContent = `🔔 (${completedJobs} Selesai)`;
+        } else {
+            const pendingJobs = db_jobs.filter(j => j.assigneeId === currentUserAssigneeId && j.status === 'pending').length;
+            notificationBell.textContent = `🔔 (${pendingJobs} Job Baru)`;
+        }
+    }
+
+</script>
+</body>
+</html>
